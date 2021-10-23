@@ -220,9 +220,10 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             }
 
             
-/**
-            UaObjectNode myConveyorRunningSpeed = (UaObjectNode) getNodeFactory().createNode(
-                newNodeId("IntelligentIndustry/Conveyor-1/RunningSpeed"),
+/** 
+ *          Note: probably should be UaVariableNode
+            UaVariableNode myConveyorRunningSpeed = (UaObjectNode) getNodeFactory().createNode(
+                newNodeId("IntelligentIndustry/Conveyor-1.RunningSpeed"),
                 runningSpeedType.getNodeId()
             );
 
@@ -238,8 +239,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
                         new DataValue(new Variant(random.nextDouble()))
                 )
             );
-
-   */ 
+*/
 
 
         } catch (UaException e) {
