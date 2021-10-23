@@ -36,6 +36,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         
     }
 
+    @TODO add 
     private void createAndAddNodes() {
         // Create a "HelloWorld" folder and add it to the node manager
         NodeId folderNodeId = newNodeId("IntelligentIndustry");
