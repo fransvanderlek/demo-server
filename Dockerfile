@@ -1,4 +1,4 @@
-FROM arm64v8/alpine
+FROM amd64/alpine
 RUN apk add openjdk11-jre
 COPY target/demo-server-1.0-SNAPSHOT.jar app.jar
 COPY target/dependency /dependency
