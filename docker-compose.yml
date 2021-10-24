@@ -2,10 +2,7 @@ version: "3"
 services:
   demo-workplace:
     image: org.intelligentindustry/demo-server:1.0-SNAPSHOT
-    networks:
-      - localnet
+
     ports:
       - "12686:12686"
  
-networks:
-  localnet:
