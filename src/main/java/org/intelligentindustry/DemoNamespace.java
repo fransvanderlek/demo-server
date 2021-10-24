@@ -2,13 +2,17 @@ package org.intelligentindustry;
 
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.Reference;
+import org.eclipse.milo.opcua.sdk.server.Lifecycle;
 import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
 import org.eclipse.milo.opcua.sdk.server.api.DataItem;
 import org.eclipse.milo.opcua.sdk.server.api.ManagedNamespaceWithLifecycle;
 import org.eclipse.milo.opcua.sdk.server.api.MonitoredItem;
+import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.BaseEventTypeNode;
+import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.ServerTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
@@ -16,14 +20,22 @@ import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.filters.AttributeFilters;
 import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
+import org.eclipse.milo.opcua.stack.core.BuiltinReferenceType;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte;
+
+import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
 
 public class DemoNamespace extends ManagedNamespaceWithLifecycle {
 
@@ -31,6 +43,11 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
     private final SubscriptionModel subscriptionModel;
     private final Random random = new Random();
     private final Logger logger = LoggerFactory.getLogger(getClass());
+
+    private volatile Thread eventThread;
+    private volatile boolean keepPostingEvents = true;
+
+    private UaObjectNode myConveyor ;
     
     public DemoNamespace(OpcUaServer server) {
         super(server, NAMESPACE_URI);
@@ -40,7 +57,79 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         getLifecycleManager().addLifecycle(subscriptionModel);
 
         getLifecycleManager().addStartupTask(this::createAndAddNodes);
+
+        getLifecycleManager().addLifecycle(new Lifecycle() {
+            @Override
+            public void startup() {
+                startBogusEventNotifier();
+            }
+
+            @Override
+            public void shutdown() {
+                try {
+                    keepPostingEvents = false;
+                    eventThread.interrupt();
+                    eventThread.join();
+                } catch (InterruptedException ignored) {
+                    // ignored
+                }
+            }
+        });
         
+    }
+
+    private void startBogusEventNotifier() {
+        // Set the EventNotifier bit on Server Node for Events.
+        UaNode serverNode = getServer()
+            .getAddressSpaceManager()
+            .getManagedNode(Identifiers.Server)
+            .orElse(null);
+
+      
+        if (serverNode instanceof ServerTypeNode) {
+            ((ServerTypeNode) serverNode).setEventNotifier(ubyte(1));
+
+            // Post a bogus Event every couple seconds
+            eventThread = new Thread(() -> {
+                while (keepPostingEvents) {
+                    try {
+                        BaseEventTypeNode eventNode = getServer().getEventFactory().createEvent(
+                            myConveyor.getNodeId(),
+                            Identifiers.BaseEventType
+                        );
+
+
+                        eventNode.setBrowseName(new QualifiedName(1, "Conveyor Event"));
+                        eventNode.setDisplayName(LocalizedText.english("Conveyor Event"));
+                        eventNode.setEventId(ByteString.of(new byte[]{0, 1, 2, 3}));
+                        eventNode.setEventType(Identifiers.BaseEventType);
+                        eventNode.setSourceNode(myConveyor.getNodeId());
+                        eventNode.setSourceName(myConveyor.getDisplayName().getText());
+                        eventNode.setTime(DateTime.now());
+                        eventNode.setReceiveTime(DateTime.NULL_VALUE);
+                        eventNode.setMessage(LocalizedText.english("Conveyor started"));
+                        eventNode.setSeverity(ushort(2));
+
+                        //noinspection UnstableApiUsage
+                        getServer().getEventBus().post(eventNode);
+
+
+                        eventNode.delete();
+                    } catch (Throwable e) {
+                        logger.error("Error creating EventNode: {}", e.getMessage(), e);
+                    }
+
+                    try {
+                        //noinspection BusyWait
+                        Thread.sleep(2_000);
+                    } catch (InterruptedException ignored) {
+                        // ignored
+                    }
+                }
+            }, "bogus-event-poster");
+
+            eventThread.start();
+        }
     }
 
    
@@ -189,6 +278,8 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             false
         ));
 
+        
+
         // Add type definition and declarations to address space.
         getNodeManager().addNode(conveyorTypeNode);
         getNodeManager().addNode(motorsType);
@@ -198,7 +289,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         // NodeFactory takes care of recursively instantiating MyObject member nodes
         // as well as adding all nodes to the address space.
         try {
-            UaObjectNode myConveyor = (UaObjectNode) getNodeFactory().createNode(
+             myConveyor = (UaObjectNode) getNodeFactory().createNode(
                 newNodeId("IntelligentIndustry/Conveyor-1"),
                 conveyorTypeNode.getNodeId()
             );
@@ -219,7 +310,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
                 System.out.println(myConveyorNode.getNodeId().toString()+ myConveyorNode.getNodeId());
             }
 
-            
+            myConveyor.setEventNotifier(ubyte(1));
 /** 
  *          Note: probably should be UaVariableNode
             UaVariableNode myConveyorRunningSpeed = (UaObjectNode) getNodeFactory().createNode(
