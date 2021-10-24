@@ -14,6 +14,7 @@ import org.eclipse.milo.opcua.sdk.server.api.MonitoredItem;
 import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.BaseEventTypeNode;
 import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.ServerTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaMethodNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectTypeNode;
@@ -85,7 +86,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             .getManagedNode(Identifiers.Server)
             .orElse(null);
 
-      
+            myConveyor.setEventNotifier(ubyte(1));
         if (serverNode instanceof ServerTypeNode) {
             ((ServerTypeNode) serverNode).setEventNotifier(ubyte(1));
 
@@ -94,25 +95,26 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
                 while (keepPostingEvents) {
                     try {
                         BaseEventTypeNode eventNode = getServer().getEventFactory().createEvent(
-                            myConveyor.getNodeId(),
+                            newNodeId(UUID.randomUUID()),
                             Identifiers.BaseEventType
                         );
 
 
-                        eventNode.setBrowseName(new QualifiedName(1, "Conveyor Event"));
-                        eventNode.setDisplayName(LocalizedText.english("Conveyor Event"));
+                        eventNode.setBrowseName(new QualifiedName(1, "Object Dropoff Event"));
+                        eventNode.setDisplayName(LocalizedText.english("Object Dropoff Event"));
                         eventNode.setEventId(ByteString.of(new byte[]{0, 1, 2, 3}));
                         eventNode.setEventType(Identifiers.BaseEventType);
                         eventNode.setSourceNode(myConveyor.getNodeId());
                         eventNode.setSourceName(myConveyor.getDisplayName().getText());
                         eventNode.setTime(DateTime.now());
                         eventNode.setReceiveTime(DateTime.NULL_VALUE);
-                        eventNode.setMessage(LocalizedText.english("Conveyor started"));
+                        eventNode.setMessage(LocalizedText.english("Object Dropoff"));
                         eventNode.setSeverity(ushort(2));
-
+                        
                         //noinspection UnstableApiUsage
                         getServer().getEventBus().post(eventNode);
 
+                        eventNode.addReference(new Reference(eventNode.getNodeId(), Identifiers.HasEventSource, myConveyor.getNodeId().expanded(), true));
 
                         eventNode.delete();
                     } catch (Throwable e) {
@@ -201,6 +203,31 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
   
 
         addCustomObjectTypeAndInstance(folderNode);
+        addConveyorStartMethod(folderNode);
+    }
+
+    private void addConveyorStartMethod(UaFolderNode folderNode) {
+        UaMethodNode methodNode = UaMethodNode.builder(getNodeContext())
+            .setNodeId(newNodeId("IntelligentIndustry/conveyor_start()"))
+            .setBrowseName(newQualifiedName("conveyor_start()"))
+            .setDisplayName(new LocalizedText(null, "conveyor_start()"))
+            .setDescription(
+                LocalizedText.english("Starts the conveyor"))
+            .build();
+
+        ConveyorStartMethod conveyorStartMethod = new ConveyorStartMethod(methodNode);
+        methodNode.setInputArguments(conveyorStartMethod.getInputArguments());
+        methodNode.setOutputArguments(conveyorStartMethod.getOutputArguments());
+        methodNode.setInvocationHandler(conveyorStartMethod);
+
+        getNodeManager().addNode(methodNode);
+
+        methodNode.addReference(new Reference(
+            methodNode.getNodeId(),
+            Identifiers.HasComponent,
+            myConveyor.getNodeId().expanded(),
+            false
+        ));
     }
 
     private void addCustomObjectTypeAndInstance(UaFolderNode rootFolder) {
@@ -228,8 +255,6 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             Identifiers.ModellingRule_Mandatory.expanded(),
             true
         ));
-
-
 
         motorsType.setValue(new DataValue(new Variant(2)));
         conveyorTypeNode.addComponent(motorsType);
