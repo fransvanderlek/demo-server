@@ -306,33 +306,6 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
                 false
             ));
 
-            for( UaNode myConveyorNode : myConveyor.getComponentNodes() ){
-                System.out.println(myConveyorNode.getNodeId().toString()+ myConveyorNode.getNodeId());
-            }
-
-            myConveyor.setEventNotifier(ubyte(1));
-/** 
- *          Note: probably should be UaVariableNode
-            UaVariableNode myConveyorRunningSpeed = (UaObjectNode) getNodeFactory().createNode(
-                newNodeId("IntelligentIndustry/Conveyor-1.RunningSpeed"),
-                runningSpeedType.getNodeId()
-            );
-
-            myConveyorRunningSpeed.setBrowseName(newQualifiedName("Conveyor-1/RunningSpeed"));
-            myConveyorRunningSpeed.setDisplayName(LocalizedText.english("Conveyor-1/RunningSpeed"));
-
-            myConveyor.addComponent(myConveyorRunningSpeed);
-
-            myConveyorRunningSpeed.getFilterChain().addLast(
-                new AttributeLoggingFilter(),
-                AttributeFilters.getValue(
-                    ctx ->
-                        new DataValue(new Variant(random.nextDouble()))
-                )
-            );
-*/
-
-
         } catch (UaException e) {
             logger.error("Error creating ConveyorType instance: {}", e.getMessage(), e);
         }
