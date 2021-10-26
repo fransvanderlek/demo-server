@@ -25,7 +25,6 @@ import static org.eclipse.milo.opcua.sdk.server.api.config.OpcUaServerConfig.USE
 /**
  * Hello world!
  *
- *  TODO: add support for method invoke
  *  TODO: add custom object events
  */
 public class App 

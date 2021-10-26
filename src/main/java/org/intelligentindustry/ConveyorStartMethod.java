@@ -17,10 +17,15 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
 import org.eclipse.milo.opcua.stack.core.types.structured.Argument;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
 
 public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
+
+
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     public static final Argument START_RESULT = new Argument(
         "start_result",
@@ -46,6 +51,8 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
 
     @Override
     protected Variant[] invoke(InvocationContext invocationContext, Variant[] inputValues) throws UaException {    
+
+        logger.info(this.getNode().getNodeId().toString() + " was invoked.");
 
         OpcUaServer server = this.getNode().getNodeContext().getServer();
 
