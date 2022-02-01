@@ -73,7 +73,6 @@ public class App
 
         List<String> bindAddresses = newArrayList();
         bindAddresses.add("0.0.0.0");
-        bindAddresses.add("141.144.205.242");
 
         Set<String> hostnames = new LinkedHashSet<>();
         hostnames.add(HostnameUtil.getHostname());
