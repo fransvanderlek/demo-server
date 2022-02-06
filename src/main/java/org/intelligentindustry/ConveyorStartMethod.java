@@ -15,17 +15,18 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
-import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
 import org.eclipse.milo.opcua.stack.core.types.structured.Argument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
 
+
 public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
 
-
+     
     private final Logger logger = LoggerFactory.getLogger(getClass());
+
 
     public static final Argument START_RESULT = new Argument(
         "start_result",
@@ -37,6 +38,7 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
 
     public ConveyorStartMethod(UaMethodNode node) {
         super(node);
+
     }
 
     @Override
@@ -52,7 +54,7 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
     @Override
     protected Variant[] invoke(InvocationContext invocationContext, Variant[] inputValues) throws UaException {    
 
-        logger.info(this.getNode().getNodeId().toString() + " was invoked.");
+        logger.info(this.getNode().getNodeId().toString() + " was invoked on object "+ invocationContext.getObjectId().toString());
 
         OpcUaServer server = this.getNode().getNodeContext().getServer();
 
@@ -65,8 +67,8 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
         eventNode.setDisplayName(LocalizedText.english("Conveyor Started Event"));
         eventNode.setEventId(ByteString.of(new byte[]{0, 1, 2, 3}));
         eventNode.setEventType(Identifiers.BaseEventType);
-        eventNode.setSourceNode(getNode().getNodeId());
-        eventNode.setSourceName(getNode().getDisplayName().getText());
+        eventNode.setSourceNode(invocationContext.getObjectId());
+        eventNode.setSourceName(invocationContext.getObjectId().getType().toString());
         eventNode.setTime(DateTime.now());
         eventNode.setReceiveTime(DateTime.NULL_VALUE);
         eventNode.setMessage(LocalizedText.english("Conveyor Started!"));
