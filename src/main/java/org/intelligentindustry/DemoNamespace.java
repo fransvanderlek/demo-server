@@ -7,7 +7,9 @@ import java.util.UUID;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.server.Lifecycle;
+import org.eclipse.milo.opcua.sdk.server.ObjectTypeManager;
 import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
+import org.eclipse.milo.opcua.sdk.server.UaNodeManager;
 import org.eclipse.milo.opcua.sdk.server.api.DataItem;
 import org.eclipse.milo.opcua.sdk.server.api.ManagedNamespaceWithLifecycle;
 import org.eclipse.milo.opcua.sdk.server.api.MonitoredItem;
@@ -19,6 +21,7 @@ import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectTypeNode.UaObjectTypeNodeBuilder;
 import org.eclipse.milo.opcua.sdk.server.nodes.filters.AttributeFilters;
 import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
 import org.eclipse.milo.opcua.stack.core.BuiltinReferenceType;
@@ -356,4 +359,125 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         subscriptionModel.onMonitoringModeChanged(monitoredItems);
     }
     
+
+    private class ConveyorType {
+
+        UaNodeManager nodeManager; 
+        UaObjectTypeNodeBuilder builder;
+        ObjectTypeManager objectTypeManager =  getServer().getObjectTypeManager();
+
+        UaObjectTypeNode conveyorTypeNode;
+
+        public ConveyorType( UaNodeManager nodeManager, UaObjectTypeNodeBuilder builder){
+            this.nodeManager = nodeManager;
+            this.builder = builder;
+        }
+
+        public void initType(){
+
+            if ( this.conveyorTypeNode != null ){
+                return;
+            }
+
+            this.conveyorTypeNode = builder
+            .setNodeId(newNodeId("ObjectTypes/ConveyorType"))
+            .setBrowseName(newQualifiedName("ConveyorType"))
+            .setDisplayName(LocalizedText.english("ConveyorType"))
+            .setIsAbstract(false)
+            .build();
+    
+            UaVariableNode motorsType = createMotorsType();
+            conveyorTypeNode.addComponent(motorsType);
+
+            UaVariableNode runningSpeedType = createRunningSpeed();
+            conveyorTypeNode.addComponent(runningSpeedType);
+
+             // Tell the ObjectTypeManager about our new type.
+        // This let's us use NodeFactory to instantiate instances of the type.
+        objectTypeManager.registerObjectType(
+            conveyorTypeNode.getNodeId(),
+            UaObjectNode.class,
+            UaObjectNode::new
+        );
+
+        // Add the inverse SubtypeOf relationship.
+        conveyorTypeNode.addReference(new Reference(
+            conveyorTypeNode.getNodeId(),
+            Identifiers.HasSubtype,
+            Identifiers.BaseObjectType.expanded(),
+            false
+        ));
+
+        
+
+        // Add type definition and declarations to address space.
+        getNodeManager().addNode(conveyorTypeNode);
+        getNodeManager().addNode(motorsType);
+        getNodeManager().addNode(runningSpeedType);
+
+        }
+
+        private UaVariableNode createMotorsType(){
+            UaVariableNode motorsType = UaVariableNode.builder(getNodeContext())
+            .setNodeId(newNodeId("ObjectTypes/ConveyorType.Motors"))
+            .setAccessLevel(AccessLevel.READ_WRITE)
+            .setBrowseName(newQualifiedName("Motors"))
+            .setDisplayName(LocalizedText.english("Motors"))
+            .setDataType(Identifiers.Int16)
+            .setTypeDefinition(Identifiers.BaseDataVariableType)
+            .build();
+
+            motorsType.addReference(new Reference(
+                motorsType.getNodeId(),
+            Identifiers.HasModellingRule,
+            Identifiers.ModellingRule_Mandatory.expanded(),
+            true
+        ));
+
+       return motorsType;
+
+        }
+
+        private UaVariableNode createRunningSpeed(){
+        UaVariableNode runningSpeedType = UaVariableNode.builder(getNodeContext())
+            .setNodeId(newNodeId("ObjectTypes/ConveyorType.RunningSpeed"))
+            .setAccessLevel(AccessLevel.READ_WRITE)
+            .setBrowseName(newQualifiedName("RunningSpeed"))
+            .setDisplayName(LocalizedText.english("RunningSpeed"))
+            .setDataType(Identifiers.Double)
+            .setTypeDefinition(Identifiers.BaseDataVariableType)
+            .build();
+
+            runningSpeedType.addReference(new Reference(
+                runningSpeedType.getNodeId(),
+            Identifiers.HasModellingRule,
+            Identifiers.ModellingRule_Mandatory.expanded(),
+            true
+        ));
+
+        return runningSpeedType;
+        
+        }
+
+        public UaObjectNode newInstance() {
+
+        try{ 
+            myConveyor = (UaObjectNode) getNodeFactory().createNode(
+               newNodeId("IntelligentIndustry/Conveyor-1"),
+               conveyorTypeNode.getNodeId()
+           );
+           myConveyor.setBrowseName(newQualifiedName("Conveyor-1"));
+           myConveyor.setDisplayName(LocalizedText.english("Conveyor-1"));
+
+            return myConveyor;
+
+       } catch (UaException e) {
+           logger.error("Error creating ConveyorType instance: {}", e.getMessage(), e);
+       }
+
+    }
+
+
+
+    }
 }
