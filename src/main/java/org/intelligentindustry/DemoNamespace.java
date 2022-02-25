@@ -184,6 +184,26 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             .setIsAbstract(false)
             .build();
 
+        // Add the inverse SubtypeOf relationship.
+        conveyorTypeNode.addReference(new Reference(
+            conveyorTypeNode.getNodeId(),
+            Identifiers.HasSubtype,
+            Identifiers.BaseObjectType.expanded(),
+            false
+        ));
+
+        // Add type definition and declarations to address space.
+        getNodeManager().addNode(conveyorTypeNode);
+
+        // Tell the ObjectTypeManager about our new type.
+        // This let's us use NodeFactory to instantiate instances of the type.
+        getServer().getObjectTypeManager().registerObjectType(
+            conveyorTypeNode.getNodeId(),
+            UaObjectNode.class,
+            UaObjectNode::new
+        );
+
+
         // "Foo" and "Bar" are members. These nodes are what are called "instance declarations" by the spec.
         UaVariableNode motorsType = UaVariableNode.builder(getNodeContext())
             .setNodeId(newNodeId("ObjectTypes/ConveyorType.Motors"))
@@ -203,6 +223,9 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
 
         motorsType.setValue(new DataValue(new Variant(2)));
         conveyorTypeNode.addComponent(motorsType);
+        getNodeManager().addNode(motorsType);
+
+
 
         UaVariableNode runningSpeedType = UaVariableNode.builder(getNodeContext())
             .setNodeId(newNodeId("ObjectTypes/ConveyorType.RunningSpeed"))
@@ -217,8 +240,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
                 runningSpeedType.getNodeId(),
             Identifiers.HasModellingRule,
             Identifiers.ModellingRule_Mandatory.expanded(),
-            true
-        ));
+            true));
 
         runningSpeedType.setValue(new DataValue(new Variant(0.0)));
 
@@ -231,30 +253,9 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         );
 
         conveyorTypeNode.addComponent(runningSpeedType);
-
-        // Tell the ObjectTypeManager about our new type.
-        // This let's us use NodeFactory to instantiate instances of the type.
-        getServer().getObjectTypeManager().registerObjectType(
-            conveyorTypeNode.getNodeId(),
-            UaObjectNode.class,
-            UaObjectNode::new
-        );
-
-        // Add the inverse SubtypeOf relationship.
-        conveyorTypeNode.addReference(new Reference(
-            conveyorTypeNode.getNodeId(),
-            Identifiers.HasSubtype,
-            Identifiers.BaseObjectType.expanded(),
-            false
-        ));
-
-        
-
-        // Add type definition and declarations to address space.
-        getNodeManager().addNode(conveyorTypeNode);
-        getNodeManager().addNode(motorsType);
         getNodeManager().addNode(runningSpeedType);
 
+//=====================================================================================
         // Use NodeFactory to create instance of MyObjectType called "MyObject".
         // NodeFactory takes care of recursively instantiating MyObject member nodes
         // as well as adding all nodes to the address space.
