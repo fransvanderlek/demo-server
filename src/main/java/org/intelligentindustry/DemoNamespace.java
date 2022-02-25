@@ -62,7 +62,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         getLifecycleManager().addLifecycle(new Lifecycle() {
             @Override
             public void startup() {
-                startBogusEventNotifier();
+               
             }
 
             @Override
@@ -77,61 +77,6 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             }
         });
         
-    }
-
-    private void startBogusEventNotifier() {
-        // Set the EventNotifier bit on Server Node for Events.
-        UaNode serverNode = getServer()
-            .getAddressSpaceManager()
-            .getManagedNode(Identifiers.Server)
-            .orElse(null);
-
-            myConveyor.setEventNotifier(ubyte(1));
-        if (serverNode instanceof ServerTypeNode) {
-            ((ServerTypeNode) serverNode).setEventNotifier(ubyte(1));
-
-            // Post a bogus Event every couple seconds
-            eventThread = new Thread(() -> {
-                while (keepPostingEvents) {
-                    try {
-                        BaseEventTypeNode eventNode = getServer().getEventFactory().createEvent(
-                            newNodeId(UUID.randomUUID()),
-                            Identifiers.BaseEventType
-                        );
-
-
-                        eventNode.setBrowseName(new QualifiedName(1, "Object Dropoff Event"));
-                        eventNode.setDisplayName(LocalizedText.english("Object Dropoff Event"));
-                        eventNode.setEventId(ByteString.of(new byte[]{0, 1, 2, 3}));
-                        eventNode.setEventType(Identifiers.BaseEventType);
-                        eventNode.setSourceNode(myConveyor.getNodeId());
-                        eventNode.setSourceName(myConveyor.getDisplayName().getText());
-                        eventNode.setTime(DateTime.now());
-                        eventNode.setReceiveTime(DateTime.NULL_VALUE);
-                        eventNode.setMessage(LocalizedText.english("Object Dropoff"));
-                        eventNode.setSeverity(ushort(2));
-                        
-                        //noinspection UnstableApiUsage
-                        getServer().getEventBus().post(eventNode);
-
-                        eventNode.addReference(new Reference(eventNode.getNodeId(), Identifiers.HasEventSource, myConveyor.getNodeId().expanded(), true));
-
-                        eventNode.delete();
-                    } catch (Throwable e) {
-                        logger.error("Error creating EventNode: {}", e.getMessage(), e);
-                    }
-
-                    try {
-                        //noinspection BusyWait
-                        Thread.sleep(2_000);
-                    } catch (InterruptedException ignored) {
-                        // ignored
-                    }
-                }
-            }, "bogus-event-poster");
-
-            eventThread.start();
-        }
     }
 
    
