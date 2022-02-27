@@ -50,8 +50,8 @@ public class ConveyorTypeSpecification {
     private static final String TYPE_NODE_ID = "ObjectTypes/"+TYPE_QNAME;
     private static final String TYPE_DISPLAY_NAME_EN = "ConveyorType";
 
-    private static final String MEMBER_RUNNING_SPEED = "RunningSpeed"
-    private static final String MEMBER_MOTORS = "Motors"   
+    private static final String MEMBER_RUNNING_SPEED = "RunningSpeed";
+    private static final String MEMBER_MOTORS = "Motors";   
 
     UaObjectTypeNode conveyorTypeNode;
 
@@ -61,11 +61,10 @@ public class ConveyorTypeSpecification {
 
     private void specifyType(){
 
-        addCustomObjectTypeAndInstance(folderNode);
         addConveyorStartMethod(folderNode);
 
          UaObjectTypeNode conveyorTypeNode = UaObjectTypeNode.builder(getNodeContext())
-            .setNodeId(newNodeId(TYPE_NODE_ID))
+            .setNodeId(new NodeId( TYPE_NODE_ID))
             .setBrowseName(newQualifiedName(TYPE_QNAME))
             .setDisplayName(LocalizedText.english(TYPE_DISPLAY_NAME_EN))
             .setIsAbstract(false)

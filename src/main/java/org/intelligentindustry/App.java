@@ -54,7 +54,7 @@ public class App
 
         server = new OpcUaServer(serverConfig);
 
-       DemoNamespace ns = new DemoNamespace(server);
+       IntelligentIndustryNamespace ns = new IntelligentIndustryNamespace(server);
 
         ns.startup();
 

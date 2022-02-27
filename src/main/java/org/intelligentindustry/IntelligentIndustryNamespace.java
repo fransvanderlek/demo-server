@@ -1,0 +1,352 @@
+package org.intelligentindustry;
+
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+
+import org.eclipse.milo.opcua.sdk.core.AccessLevel;
+import org.eclipse.milo.opcua.sdk.core.Reference;
+import org.eclipse.milo.opcua.sdk.server.Lifecycle;
+import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
+import org.eclipse.milo.opcua.sdk.server.api.DataItem;
+import org.eclipse.milo.opcua.sdk.server.api.ManagedNamespaceWithLifecycle;
+import org.eclipse.milo.opcua.sdk.server.api.MonitoredItem;
+import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.BaseEventTypeNode;
+import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.ServerTypeNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaMethodNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectTypeNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.filters.AttributeFilters;
+import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
+import org.eclipse.milo.opcua.stack.core.BuiltinReferenceType;
+import org.eclipse.milo.opcua.stack.core.Identifiers;
+import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
+import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
+import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte;
+
+import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
+
+public class IntelligentIndustryNamespace extends ManagedNamespaceWithLifecycle {
+
+    public static final String NAMESPACE_URI = "urn:intelligentindustry:demo-server";
+    private final SubscriptionModel subscriptionModel;
+    private final Random random = new Random();
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+
+    private volatile Thread eventThread;
+
+    // private UaObjectNode myConveyor;
+
+    public IntelligentIndustryNamespace(OpcUaServer server) {
+        super(server, NAMESPACE_URI);
+
+        subscriptionModel = new SubscriptionModel(server, this);
+
+        getLifecycleManager().addLifecycle(subscriptionModel);
+
+        getLifecycleManager().addStartupTask(this::setup);
+
+        getLifecycleManager().addLifecycle(new Lifecycle() {
+            @Override
+            public void startup() {
+
+            }
+
+            @Override
+            public void shutdown() {
+                try {
+                    eventThread.interrupt();
+                    eventThread.join();
+                } catch (InterruptedException ignored) {
+                    // ignored
+                }
+            }
+        });
+
+    }
+
+    private UaFolderNode createRootFolder() {
+        // Create a "HelloWorld" folder and add it to the node manager
+        NodeId folderNodeId = newNodeId("IntelligentIndustry");
+
+        UaFolderNode folderNode = new UaFolderNode(
+                getNodeContext(),
+                folderNodeId,
+                newQualifiedName("IntelligentIndustry"),
+                LocalizedText.english("IntelligentIndustry"));
+
+        // Make sure our new folder shows up under the server's Objects folder.
+        folderNode.addReference(new Reference(
+                folderNode.getNodeId(),
+                Identifiers.Organizes,
+                Identifiers.ObjectsFolder.expanded(),
+                false));
+
+        return folderNode;
+
+    }
+
+    private void setup() {
+
+        UaFolderNode rootFolder = createRootFolder();
+        getNodeManager().addNode(rootFolder);
+
+        UaObjectTypeNode conveyorType = createConveyorType();
+        // -----------------------------------------------
+        // some housekeeping
+
+        getNodeManager().addNode(conveyorType);
+
+        // so we can instantiate
+        getServer().getObjectTypeManager().registerObjectType(
+                conveyorType.getNodeId(),
+                UaObjectNode.class,
+                UaObjectNode::new);
+
+
+        UaVariableNode motorsVariable = createMotorsVariable(conveyorType);
+        getNodeManager().addNode(motorsVariable);
+        
+
+        addCustomObjectTypeAndInstance(rootFolder);
+        // addConveyorStartMethod(rootFolder);
+    }
+
+    private UaObjectTypeNode createConveyorType() {
+        UaObjectTypeNode conveyorTypeNode = UaObjectTypeNode.builder(getNodeContext())
+                .setNodeId(newNodeId("ObjectTypes/ConveyorType"))
+                .setBrowseName(newQualifiedName("ConveyorType"))
+                .setDisplayName(LocalizedText.english("ConveyorType"))
+                .setIsAbstract(false)
+                .build();
+
+        // Add the inverse SubtypeOf relationship.
+        conveyorTypeNode.addReference(new Reference(
+                conveyorTypeNode.getNodeId(),
+                Identifiers.HasSubtype,
+                Identifiers.BaseObjectType.expanded(),
+                false));
+
+        return conveyorTypeNode;
+
+    }
+
+    private UaVariableNode createMotorsVariable( UaObjectTypeNode parent){
+
+                // ==========================================
+        // define motorstype structure
+
+        UaVariableNode motorsType = UaVariableNode.builder(getNodeContext())
+                .setNodeId(newNodeId("ObjectTypes/ConveyorType.Motors")) // change this, so that it is independent from
+                                                                         // conveyor
+                .setAccessLevel(AccessLevel.READ_WRITE)
+                .setBrowseName(newQualifiedName("Motors"))
+                .setDisplayName(LocalizedText.english("Motors"))
+                .setDataType(Identifiers.Int16)
+                .setTypeDefinition(Identifiers.BaseDataVariableType)
+                .build();
+
+        motorsType.addReference(new Reference(
+                motorsType.getNodeId(),
+                Identifiers.HasModellingRule,
+                Identifiers.ModellingRule_Mandatory.expanded(),
+                true));
+
+        motorsType.setValue(new DataValue(new Variant(2)));
+
+        parent.addComponent(motorsType);
+
+        return motorsType;
+    }
+  
+
+    private void addCustomObjectTypeAndInstance(UaFolderNode rootFolder) {
+
+        // ==========================================
+        // define conveyor type structure
+
+        UaObjectTypeNode conveyorTypeNode = UaObjectTypeNode.builder(getNodeContext())
+                .setNodeId(newNodeId("ObjectTypes/ConveyorType"))
+                .setBrowseName(newQualifiedName("ConveyorType"))
+                .setDisplayName(LocalizedText.english("ConveyorType"))
+                .setIsAbstract(false)
+                .build();
+
+        // Add the inverse SubtypeOf relationship.
+        conveyorTypeNode.addReference(new Reference(
+                conveyorTypeNode.getNodeId(),
+                Identifiers.HasSubtype,
+                Identifiers.BaseObjectType.expanded(),
+                false));
+
+        // -----------------------------------------------
+        // some housekeeping
+
+        getNodeManager().addNode(conveyorTypeNode);
+
+        // so we can instantiate
+        getServer().getObjectTypeManager().registerObjectType(
+                conveyorTypeNode.getNodeId(),
+                UaObjectNode.class,
+                UaObjectNode::new);
+
+        // ==========================================
+        // define motorstype structure
+
+        UaVariableNode motorsType = UaVariableNode.builder(getNodeContext())
+                .setNodeId(newNodeId("ObjectTypes/ConveyorType.Motors")) // change this, so that it is independent from
+                                                                         // conveyor
+                .setAccessLevel(AccessLevel.READ_WRITE)
+                .setBrowseName(newQualifiedName("Motors"))
+                .setDisplayName(LocalizedText.english("Motors"))
+                .setDataType(Identifiers.Int16)
+                .setTypeDefinition(Identifiers.BaseDataVariableType)
+                .build();
+
+        motorsType.addReference(new Reference(
+                motorsType.getNodeId(),
+                Identifiers.HasModellingRule,
+                Identifiers.ModellingRule_Mandatory.expanded(),
+                true));
+
+        motorsType.setValue(new DataValue(new Variant(2)));
+
+        conveyorTypeNode.addComponent(motorsType);
+
+        // ------------------------
+        // generic housekeeping
+
+        getNodeManager().addNode(motorsType);
+
+        UaVariableNode runningSpeedType = UaVariableNode.builder(getNodeContext())
+                .setNodeId(newNodeId("ObjectTypes/ConveyorType.RunningSpeed"))
+                .setAccessLevel(AccessLevel.READ_WRITE)
+                .setBrowseName(newQualifiedName("RunningSpeed"))
+                .setDisplayName(LocalizedText.english("RunningSpeed"))
+                .setDataType(Identifiers.Double)
+                .setTypeDefinition(Identifiers.BaseDataVariableType)
+                .build();
+
+        runningSpeedType.addReference(new Reference(
+                runningSpeedType.getNodeId(),
+                Identifiers.HasModellingRule,
+                Identifiers.ModellingRule_Mandatory.expanded(),
+                true));
+
+        runningSpeedType.setValue(new DataValue(new Variant(0.0)));
+
+        runningSpeedType.getFilterChain().addLast(
+                new AttributeLoggingFilter(),
+                AttributeFilters.getValue(
+                        ctx -> new DataValue(new Variant(random.nextDouble()))));
+
+        conveyorTypeNode.addComponent(runningSpeedType);
+        getNodeManager().addNode(runningSpeedType);
+
+        // =====================================================================================
+        // Use NodeFactory to create instance of MyObjectType called "MyObject".
+        // NodeFactory takes care of recursively instantiating MyObject member nodes
+        // as well as adding all nodes to the address space.
+        try {
+            myConveyor = (UaObjectNode) getNodeFactory().createNode(
+                    newNodeId("IntelligentIndustry/Conveyor-1"),
+                    conveyorTypeNode.getNodeId());
+            myConveyor.setBrowseName(newQualifiedName("Conveyor-1"));
+            myConveyor.setDisplayName(LocalizedText.english("Conveyor-1"));
+
+            // Add forward and inverse references from the root folder.
+            rootFolder.addOrganizes(myConveyor);
+
+            myConveyor.addReference(new Reference(
+                    myConveyor.getNodeId(),
+                    Identifiers.Organizes,
+                    rootFolder.getNodeId().expanded(),
+                    false));
+
+        } catch (UaException e) {
+            logger.error("Error creating ConveyorType instance: {}", e.getMessage(), e);
+        }
+    }
+
+    // private void addConveyorStartMethod(UaFolderNode folderNode) {
+    //     UaMethodNode methodNode = UaMethodNode.builder(getNodeContext())
+    //             .setNodeId(newNodeId("IntelligentIndustry/conveyor_start()"))
+    //             .setBrowseName(newQualifiedName("conveyor_start()"))
+    //             .setDisplayName(new LocalizedText(null, "conveyor_start()"))
+    //             .setDescription(
+    //                     LocalizedText.english("Starts the conveyor"))
+    //             .build();
+
+    //     ConveyorStartMethod conveyorStartMethod = new ConveyorStartMethod(methodNode);
+    //     methodNode.setInputArguments(conveyorStartMethod.getInputArguments());
+    //     methodNode.setOutputArguments(conveyorStartMethod.getOutputArguments());
+    //     methodNode.setInvocationHandler(conveyorStartMethod);
+
+    //     getNodeManager().addNode(methodNode);
+
+    //     methodNode.addReference(new Reference(
+    //             methodNode.getNodeId(),
+    //             Identifiers.HasComponent,
+    //             myConveyor.getNodeId().expanded(),
+    //             false));
+    // }
+
+    private UaMethodNode createConveyorStartMethod(UaObjectNode parent) {
+        UaMethodNode methodNode = UaMethodNode.builder(getNodeContext())
+                .setNodeId(newNodeId("IntelligentIndustry/conveyor_start()"))
+                .setBrowseName(newQualifiedName("conveyor_start()"))
+                .setDisplayName(new LocalizedText(null, "conveyor_start()"))
+                .setDescription(
+                        LocalizedText.english("Starts the conveyor"))
+                .build();
+
+        ConveyorStartMethod conveyorStartMethod = new ConveyorStartMethod(methodNode);
+        methodNode.setInputArguments(conveyorStartMethod.getInputArguments());
+        methodNode.setOutputArguments(conveyorStartMethod.getOutputArguments());
+        methodNode.setInvocationHandler(conveyorStartMethod);
+
+        getNodeManager().addNode(methodNode);
+
+        methodNode.addReference(new Reference(
+                methodNode.getNodeId(),
+                Identifiers.HasComponent,
+                parent.getNodeId().expanded(),
+                false));
+
+        return methodNode;
+
+    }
+
+    @Override
+    public void onDataItemsCreated(List<DataItem> dataItems) {
+        subscriptionModel.onDataItemsCreated(dataItems);
+    }
+
+    @Override
+    public void onDataItemsModified(List<DataItem> dataItems) {
+        subscriptionModel.onDataItemsModified(dataItems);
+    }
+
+    @Override
+    public void onDataItemsDeleted(List<DataItem> dataItems) {
+        subscriptionModel.onDataItemsDeleted(dataItems);
+    }
+
+    @Override
+    public void onMonitoringModeChanged(List<MonitoredItem> monitoredItems) {
+        subscriptionModel.onMonitoringModeChanged(monitoredItems);
+    }
+
+}
