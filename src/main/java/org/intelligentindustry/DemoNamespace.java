@@ -57,12 +57,11 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
 
         getLifecycleManager().addLifecycle(subscriptionModel);
 
-        getLifecycleManager().addStartupTask(this::createAndAddNodes);
+        getLifecycleManager().addStartupTask(this::initialize);
 
         getLifecycleManager().addLifecycle(new Lifecycle() {
             @Override
             public void startup() {
-                startBogusEventNotifier();
             }
 
             @Override
@@ -78,64 +77,8 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         });
         
     }
-
-    private void startBogusEventNotifier() {
-        // Set the EventNotifier bit on Server Node for Events.
-        UaNode serverNode = getServer()
-            .getAddressSpaceManager()
-            .getManagedNode(Identifiers.Server)
-            .orElse(null);
-
-            myConveyor.setEventNotifier(ubyte(1));
-        if (serverNode instanceof ServerTypeNode) {
-            ((ServerTypeNode) serverNode).setEventNotifier(ubyte(1));
-
-            // Post a bogus Event every couple seconds
-            eventThread = new Thread(() -> {
-                while (keepPostingEvents) {
-                    try {
-                        BaseEventTypeNode eventNode = getServer().getEventFactory().createEvent(
-                            newNodeId(UUID.randomUUID()),
-                            Identifiers.BaseEventType
-                        );
-
-
-                        eventNode.setBrowseName(new QualifiedName(1, "Object Dropoff Event"));
-                        eventNode.setDisplayName(LocalizedText.english("Object Dropoff Event"));
-                        eventNode.setEventId(ByteString.of(new byte[]{0, 1, 2, 3}));
-                        eventNode.setEventType(Identifiers.BaseEventType);
-                        eventNode.setSourceNode(myConveyor.getNodeId());
-                        eventNode.setSourceName(myConveyor.getDisplayName().getText());
-                        eventNode.setTime(DateTime.now());
-                        eventNode.setReceiveTime(DateTime.NULL_VALUE);
-                        eventNode.setMessage(LocalizedText.english("Object Dropoff"));
-                        eventNode.setSeverity(ushort(2));
-                        
-                        //noinspection UnstableApiUsage
-                        getServer().getEventBus().post(eventNode);
-
-                        eventNode.addReference(new Reference(eventNode.getNodeId(), Identifiers.HasEventSource, myConveyor.getNodeId().expanded(), true));
-
-                        eventNode.delete();
-                    } catch (Throwable e) {
-                        logger.error("Error creating EventNode: {}", e.getMessage(), e);
-                    }
-
-                    try {
-                        //noinspection BusyWait
-                        Thread.sleep(2_000);
-                    } catch (InterruptedException ignored) {
-                        // ignored
-                    }
-                }
-            }, "bogus-event-poster");
-
-            eventThread.start();
-        }
-    }
-
    
-    private void createAndAddNodes() {
+    private void initialize() {
         // Create a "HelloWorld" folder and add it to the node manager
         NodeId folderNodeId = newNodeId("IntelligentIndustry");
 
@@ -154,59 +97,13 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             Identifiers.Organizes,
             Identifiers.ObjectsFolder.expanded(),
             false
-        ));
-
-        // Add the rest of the nodes
-       // variable scalar nodes
-
-       //create a folder for the scalartypes
-       UaFolderNode dynamicFolder = new UaFolderNode(
-        getNodeContext(),
-        newNodeId("IntellingetIndustry/Dynamic"),
-        newQualifiedName("Dynamic"),
-        LocalizedText.english("Dynamic")
-    );
-
-    getNodeManager().addNode(dynamicFolder);
-    folderNode.addOrganizes(dynamicFolder);
-   
-    // Dynamic Double
-    {
-        String name = "Double";
-        NodeId typeId = Identifiers.Double;
-        Variant variant = new Variant(0.0);
-
-        UaVariableNode node = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
-            .setNodeId(newNodeId("IntelligentIndustry/Dynamic/" + name))
-            .setAccessLevel(AccessLevel.READ_WRITE)
-            .setBrowseName(newQualifiedName(name))
-            .setDisplayName(LocalizedText.english(name))
-            .setDataType(typeId)
-            .setTypeDefinition(Identifiers.BaseDataVariableType)
-            .build();
-
-        node.setValue(new DataValue(variant));
-
-        node.getFilterChain().addLast(
-            new AttributeLoggingFilter(),
-            AttributeFilters.getValue(
-                ctx ->
-                    new DataValue(new Variant(random.nextDouble()))
-            )
-        );
-
-        getNodeManager().addNode(node);
-        dynamicFolder.addOrganizes(node);
-    }
-
-       // addSqrtMethod(folderNode);
-  
+        ));  
 
         addCustomObjectTypeAndInstance(folderNode);
-        addConveyorStartMethod(folderNode);
+        addConveyorStartMethod(folderNode, myConveyor);
     }
 
-    private void addConveyorStartMethod(UaFolderNode folderNode) {
+    private void addConveyorStartMethod(UaFolderNode folderNode, UaObjectNode targetNode) {
         UaMethodNode methodNode = UaMethodNode.builder(getNodeContext())
             .setNodeId(newNodeId("IntelligentIndustry/conveyor_start()"))
             .setBrowseName(newQualifiedName("conveyor_start()"))
@@ -225,7 +122,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         methodNode.addReference(new Reference(
             methodNode.getNodeId(),
             Identifiers.HasComponent,
-            myConveyor.getNodeId().expanded(),
+            targetNode.getNodeId().expanded(),
             false
         ));
     }
@@ -275,15 +172,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             true
         ));
 
-        runningSpeedType.setValue(new DataValue(new Variant(0.0)));
-
-        runningSpeedType.getFilterChain().addLast(
-            new AttributeLoggingFilter(),
-            AttributeFilters.getValue(
-                ctx ->
-                    new DataValue(new Variant(random.nextDouble()))
-            )
-        );
+        runningSpeedType.setValue(new DataValue(new Variant(0.0)));        
 
         conveyorTypeNode.addComponent(runningSpeedType);
 

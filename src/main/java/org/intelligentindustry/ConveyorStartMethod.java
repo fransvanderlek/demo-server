@@ -2,11 +2,14 @@ package org.intelligentindustry;
 
 import java.util.UUID;
 
+import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.core.ValueRanks;
 import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
 import org.eclipse.milo.opcua.sdk.server.api.methods.AbstractMethodInvocationHandler;
 import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.BaseEventTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaMethodNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
@@ -27,6 +30,8 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
      
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
+    private UaObjectNode targetNode = null;
+        
 
     public static final Argument START_RESULT = new Argument(
         "start_result",
