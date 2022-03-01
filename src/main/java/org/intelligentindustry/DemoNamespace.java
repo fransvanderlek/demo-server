@@ -49,6 +49,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
     private volatile boolean keepPostingEvents = true;
 
     private UaObjectNode myConveyor ;
+    private UaVariableNode runningSpeedType;
     
     public DemoNamespace(OpcUaServer server) {
         super(server, NAMESPACE_URI);
@@ -62,7 +63,6 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         getLifecycleManager().addLifecycle(new Lifecycle() {
             @Override
             public void startup() {
-                startBogusEventNotifier();
             }
 
             @Override
@@ -156,51 +156,6 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
             false
         ));
 
-        // Add the rest of the nodes
-       // variable scalar nodes
-
-       //create a folder for the scalartypes
-       UaFolderNode dynamicFolder = new UaFolderNode(
-        getNodeContext(),
-        newNodeId("IntellingetIndustry/Dynamic"),
-        newQualifiedName("Dynamic"),
-        LocalizedText.english("Dynamic")
-    );
-
-    getNodeManager().addNode(dynamicFolder);
-    folderNode.addOrganizes(dynamicFolder);
-   
-    // Dynamic Double
-    {
-        String name = "Double";
-        NodeId typeId = Identifiers.Double;
-        Variant variant = new Variant(0.0);
-
-        UaVariableNode node = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
-            .setNodeId(newNodeId("IntelligentIndustry/Dynamic/" + name))
-            .setAccessLevel(AccessLevel.READ_WRITE)
-            .setBrowseName(newQualifiedName(name))
-            .setDisplayName(LocalizedText.english(name))
-            .setDataType(typeId)
-            .setTypeDefinition(Identifiers.BaseDataVariableType)
-            .build();
-
-        node.setValue(new DataValue(variant));
-
-        node.getFilterChain().addLast(
-            new AttributeLoggingFilter(),
-            AttributeFilters.getValue(
-                ctx ->
-                    new DataValue(new Variant(random.nextDouble()))
-            )
-        );
-
-        getNodeManager().addNode(node);
-        dynamicFolder.addOrganizes(node);
-    }
-
-       // addSqrtMethod(folderNode);
-  
 
         addCustomObjectTypeAndInstance(folderNode);
         addConveyorStartMethod(folderNode);
@@ -215,7 +170,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
                 LocalizedText.english("Starts the conveyor"))
             .build();
 
-        ConveyorStartMethod conveyorStartMethod = new ConveyorStartMethod(methodNode);
+        ConveyorStartMethod conveyorStartMethod = new ConveyorStartMethod(methodNode, runningSpeedType);
         methodNode.setInputArguments(conveyorStartMethod.getInputArguments());
         methodNode.setOutputArguments(conveyorStartMethod.getOutputArguments());
         methodNode.setInvocationHandler(conveyorStartMethod);
@@ -259,7 +214,7 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         motorsType.setValue(new DataValue(new Variant(2)));
         conveyorTypeNode.addComponent(motorsType);
 
-        UaVariableNode runningSpeedType = UaVariableNode.builder(getNodeContext())
+        runningSpeedType = UaVariableNode.builder(getNodeContext())
             .setNodeId(newNodeId("ObjectTypes/ConveyorType.RunningSpeed"))
             .setAccessLevel(AccessLevel.READ_WRITE)
             .setBrowseName(newQualifiedName("RunningSpeed"))
@@ -276,14 +231,6 @@ public class DemoNamespace extends ManagedNamespaceWithLifecycle {
         ));
 
         runningSpeedType.setValue(new DataValue(new Variant(0.0)));
-
-        runningSpeedType.getFilterChain().addLast(
-            new AttributeLoggingFilter(),
-            AttributeFilters.getValue(
-                ctx ->
-                    new DataValue(new Variant(random.nextDouble()))
-            )
-        );
 
         conveyorTypeNode.addComponent(runningSpeedType);
 

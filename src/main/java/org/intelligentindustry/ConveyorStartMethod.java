@@ -7,9 +7,11 @@ import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
 import org.eclipse.milo.opcua.sdk.server.api.methods.AbstractMethodInvocationHandler;
 import org.eclipse.milo.opcua.sdk.server.model.nodes.objects.BaseEventTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaMethodNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
@@ -27,6 +29,8 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
      
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
+    private UaVariableNode runningSpeedType;
+
 
     public static final Argument START_RESULT = new Argument(
         "start_result",
@@ -36,8 +40,9 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
         new LocalizedText("The result of the start command")
     );
 
-    public ConveyorStartMethod(UaMethodNode node) {
+    public ConveyorStartMethod(UaMethodNode node, UaVariableNode runningSpeedType) {
         super(node);
+        this.runningSpeedType = runningSpeedType;
 
     }
 
@@ -77,6 +82,45 @@ public class ConveyorStartMethod extends AbstractMethodInvocationHandler {
         server.getEventBus().post(eventNode);
 
         eventNode.delete();
+
+        new Thread(){
+            public void run() {
+
+                double value=0.0;
+
+                for ( int counter =1; counter < 30; counter ++){
+                    
+                    if( counter < 10){
+                        value = 2.0*counter;                        
+                        
+                    } else if ( counter >=10 && counter <20 ){
+                        value = 20.0;
+
+                    } else if ( counter >=20 ){
+                        value = 2.0*( 30-counter);
+                    } 
+
+                    runningSpeedType.setValue(new DataValue(new Variant(value)));
+                    
+                    try {
+                        Thread.sleep(1000);
+
+                    } catch (InterruptedException e) {
+                        
+                    }
+                    counter ++;
+                }
+
+                  
+
+            }
+
+
+        }.start();
+
+       
+
+
 
         return new Variant[]{new Variant("Start succeeded.")};
     }
